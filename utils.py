@@ -1,46 +1,40 @@
+'''
+This file contains a number of utility functions for the estimation and control tasks. More specifically:
+1) gather_trajectories: generates trajectories of the unknown system either by following a feedback control law
+	from different initial states or by applying random input in samples states of the unknown system.
+2) exp_kernel: is the exponentia lkernel function used in GP and STP estimation
+3) GP, STP, GP_local, STP_local are the Gaussian, Student-t, local Gaussian and local Student-t process regression
+	estimation methods
+4) get_traj_unc_sets, get_traj_unc_sets_tp1: the first returns the uncertainrty sets for all the MPC trajectory 
+	while the latter only for the next time step
+5) get_Jacobian: computes the Jacobian matrix around specified lienarization points
+6) minkowski_sum: computes the Minkowski sum between two sets in R
+7) STP_MPC: implements the MPC controller
+'''
+
 import numpy as np
 import scipy as sc
-from scipy.integrate import quad, simps
 import IPython
-from lwls import *
-from scipy.interpolate import UnivariateSpline
-import scipy.stats as stats
 from scipy import spatial
 from cvxpy import *
 from cvxpy.atoms.norm_inf import norm_inf
-import matplotlib.pyplot as plt
-import scipy.stats as stats
-import statsmodels.api as sm
-from scipy.optimize import curve_fit
 from cvxpy.atoms.elementwise.power import power
-from fractions import Fraction
-from lwls import *
-import sys
-import seaborn as sns
-#from video_plot.py import *
-import matplotlib.cm as cm
-np.set_printoptions(threshold=sys.maxsize)
-import matplotlib.animation as animation
-from utils import *
-import scipy.stats as stats
+# import matplotlib.pyplot as plt
+# import matplotlib.animation as animation
 # compute function F(x)=\frac{\int_a^x(\hat{f}''(t))^{2/5}dt}{\int_a^b(\hat{f}''(t))^{2/5}dt}   (**)
-import matplotlib.pylab as plt
-from mpl_toolkits.mplot3d import Axes3D
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection # New import
-from mpl_toolkits.mplot3d import Axes3D
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+# import matplotlib.pylab as plt
+# import matplotlib.cm as cm
+# from mpl_toolkits.mplot3d import Axes3D
+# from mpl_toolkits.mplot3d.art3d import Poly3DCollection # New import
+# from mpl_toolkits.mplot3d import Axes3D
+# from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 
-def integrand(x):
-	# second derivative of third root of x raised to the -2/5 power
-	return (((-2/9)**(2))**(1/5))*np.cbrt(x)**(-2)
 
 
 def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, upper, lower, mu, sigma, method='random'):
 
-	# mu = 0.0 # noise mean and variance
-	# sigma = 0.1
-	init_var = 2.5	
+
 	if method == 'control':
 		# simpler example/ create trajectories for estimation
 		x_trajectories = [] # save all trajectories
@@ -49,41 +43,38 @@ def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, upper, lower, mu, sigma, 
 		x_0 = np.array([x0 + init_var*np.random.rand()]) # initial state (position and velocity), 
 		x = np.zeros((T,2)) # vector of states and control input
 		y = np.zeros((T,1))
-		alpha = 0.75 # control constant
 		x[0, 0] = x_0 # initial state
 		x[0,1] = - np.cbrt(alpha_c*x[0,0]) - alpha*(x[0,0]-xf)
-		noise  = stats.truncnorm((lower - mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
-		y[0,0] = np.cbrt(alpha_c*x[0,0])  + dt*x[0,1] + noise.rvs(1)[0]#np.random.normal(mu, sigma, 1)
-		
+		# noise  = stats.truncnorm((lower - mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
+		noise  = np.random.normal(mu, sigma, 1)
+		y[0,0] = np.cbrt(alpha_c*x[0,0])  + dt*x[0,1] + noise
+
 		for i in range(1,T):
 			#u[:,i-1] = - np.cbrt(x[:, i-1]) - alpha*(x[:,i-1]-xf)
 			x[i,0] = y[i-1,0]
 			x[i,1] = - np.cbrt(alpha_c*x[i,0]) - alpha*(x[i,0]-xf)
 			# upper = 0.05
 			# lower = -0.05
-			noise  = stats.truncnorm((lower - mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
-			y[i,0] = np.cbrt(alpha_c*x[i,0])  + dt*x[i,1] + noise.rvs(1)[0]#np.random.normal(mu, sigma, 1)
+			noise  = np.random.normal(mu, sigma, 1)
+			y[i,0] = np.cbrt(alpha_c*x[i,0])  + dt*x[i,1] + noise
 
 		# save trajectory
 		x_trajectories = x
-		y_trajectories = y
+		y_trajectories = y   
 
 
 	else:
 		# generate random data
-		# maybe add here
-
 		x_0 = 0#np.random.uniform(low=-6.0, high=6.0)# np.array([x0 + init_var*np.random.rand()]) # initial state (position and velocity), 
 		x = np.zeros((T,2)) # vector of states and control input
 		y = np.zeros((T,1))
-		alpha = 0.75 # control constant
 		noise  = np.random.normal(mu, sigma, 1)
-		if x_0>=-10 and x_0<=-8:
-				x_0 += 5*np.random.normal(mu, sigma, 1)
+		# if x_0>=-2 and x_0<=2:
+		# 		noise = 30*np.random.normal(mu, sigma, 1)
 		x[0, 0] = x_0 # initial state
 		x[0,1] = np.random.uniform(low=-2.0, high=2.0)
 		
-		y[0,0] = 5*np.cbrt(alpha_c*x[0,0])  + dt*x[0,1] + noise#np.random.normal(mu, sigma, 1)
+		y[0,0] = 5*np.cbrt(alpha_c*x[0,0])  + dt*x[0,1] + noise
 		
 		for i in range(1,T):
 			#u[:,i-1] = - np.cbrt(x[:, i-1]) - alpha*(x[:,i-1]-xf)
@@ -93,8 +84,8 @@ def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, upper, lower, mu, sigma, 
 			# upper = 0.05
 			# lower = -0.05
 			noise  = np.random.normal(mu, sigma, 1)#stats.truncnorm((lower - mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
-			if (x[i,0]>=-10) and (x[i,0]<=-8):
-				x[i,0] += 5*np.random.normal(mu, sigma, 1)
+			if (x[i,0]>=-2) and (x[i,0]<=2):
+				noise = 5*np.random.normal(mu, sigma, 1)
 
 			y[i,0] = 5*np.cbrt(alpha_c*x[i,0])  + dt*x[i,1] + noise#np.random.normal(mu, sigma, 1)
 
@@ -108,12 +99,14 @@ def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, upper, lower, mu, sigma, 
 	return x_trajectories, y_trajectories
 
 
+
 # Define the exponentiated quadratic 
 def exp_kernel(xa, xb, scale):
 	"""Exponentiated quadratic  with σ=1"""
 	# L2 distance (Squared Euclidian)
 	sq_norm = -0.5 * spatial.distance.cdist(xa, xb, 'sqeuclidean')
 	return np.exp(sq_norm/(2 * scale))
+
 
 
 def GP(X1, y1, X2_big, kernel, sigma_noise, scale):
@@ -139,7 +132,7 @@ def GP(X1, y1, X2_big, kernel, sigma_noise, scale):
 		# IPython.embed()
 		Sigma12 = kernel(X1, X2, scale)
 		# Solve
-		solved = scipy.linalg.solve(Sigma11, Sigma12, assume_a='pos').T
+		solved = sc.linalg.solve(Sigma11, Sigma12, assume_a='pos').T
 		# Compute posterior mean
 		mu2 = solved @ y1
 		# Compute the posterior covariance
@@ -150,6 +143,7 @@ def GP(X1, y1, X2_big, kernel, sigma_noise, scale):
 		Sigmas[ind] = Sigma2
 		ind += 1
 	return mus, Sigmas 
+
 
 
 def STP(X1, y1, X2_big, kernel, sigma_noise, scale):
@@ -178,17 +172,18 @@ def STP(X1, y1, X2_big, kernel, sigma_noise, scale):
 		X2 = np.expand_dims(X2, 1).T
 		Sigma12 = kernel(X1, X2, scale)
 		# Solve
-		solved = scipy.linalg.solve(Sigma11, Sigma12, assume_a='pos').T
+		solved = sc.linalg.solve(Sigma11, Sigma12, assume_a='pos').T
 		# Compute posterior mean
 		mu2 = solved @ y1
 		# Compute the posterior covariance
 		Sigma22 = kernel(X2, X2, scale)
-		Sigma2 = (dof+y1.T@scipy.linalg.solve(Sigma11,y1)-2)/(dof+len(X1)-2)*(Sigma22 + sigma_noise - (solved @ Sigma12))
+		Sigma2 = (dof+y1.T@sc.linalg.solve(Sigma11,y1)-2)/(dof+len(X1)-2)*(Sigma22 + sigma_noise - (solved @ Sigma12))
 		#IPython.embed()
 		mus[ind] = mu2
 		Sigmas[ind] = Sigma2
 		ind += 1
 	return mus, Sigmas  
+
 
 
 def GP_local(X1_big, y1_big, X2_big, K, kernel, sigma_noise, scale):
@@ -215,7 +210,7 @@ def GP_local(X1_big, y1_big, X2_big, K, kernel, sigma_noise, scale):
 		# Kernel of observations vs to-predict
 		Sigma12 = kernel(X1, X2, scale)
 		# Solve
-		solved = scipy.linalg.solve(Sigma11, Sigma12, assume_a='pos').T
+		solved = sc.linalg.solve(Sigma11, Sigma12, assume_a='pos').T
 		# Compute posterior mean
 		mu2 = solved @ y1
 		# Compute the posterior covariance
@@ -225,6 +220,7 @@ def GP_local(X1_big, y1_big, X2_big, K, kernel, sigma_noise, scale):
 		Sigmas[ind] = Sigma2
 		ind += 1
 	return mus, Sigmas 
+
 
 
 def STP_local(X1_big, y1_big, X2_big, K, kernel, sigma_noise, scale):
@@ -252,18 +248,17 @@ def STP_local(X1_big, y1_big, X2_big, K, kernel, sigma_noise, scale):
 		# Kernel of observations vs to-predict
 		Sigma12 = kernel(X1, X2, scale)
 		# Solve
-		solved = scipy.linalg.solve(Sigma11, Sigma12, assume_a='pos').T
+		solved = sc.linalg.solve(Sigma11, Sigma12, assume_a='pos').T
 		# Compute posterior mean
 		mu2 = solved @ y1
 		# Compute the posterior covariance
 		Sigma22 = kernel(X2, X2, scale)
-		Sigma2 = (dof+y1.T@scipy.linalg.solve(Sigma11,y1)-2)/(dof+len(X1)-2)*(Sigma22 + sigma_noise - (solved @ Sigma12))
+		Sigma2 = (dof+y1.T@sc.linalg.solve(Sigma11,y1)-2)/(dof+len(X1)-2)*(Sigma22 + sigma_noise - (solved @ Sigma12))
 		#IPython.embed()
 		mus[ind] = mu2
 		Sigmas[ind] = Sigma2
 		ind += 1
 	return mus, Sigmas  
-
 
 
 
@@ -331,148 +326,63 @@ def plot_fit(X1_big, y1_big, sigma):
 	plt.show()
 
 
-def plot_traj_unc_sets(X1_big,y1_big, x_traj,):
+
+def get_traj_unc_sets(init_traj, mus, sigmas, max_x_lin, Lip_sigma, Lip_grad_mu):
+	unc_up = []
+	unc_low = []
+	x_temp_up = 0
+	x_temp_low = 0
+	for i in range(len(init_traj)):
+		ell_x_u = np.max([np.linalg.norm(init_traj[i]-max_x_lin), np.linalg.norm(init_traj[i]+max_x_lin)])
+		ell_x_u = max_x_lin
+		x_temp_1 = mus[i] + 2*(sigmas[i] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
+		x_temp_2 = mus[i] - 2*(sigmas[i] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
+
+		x_temp_up, x_temp_low = minkowski_sum(x_temp_up, x_temp_low, x_temp_1, x_temp_2)
+		unc_up.append(x_temp_up)
+		unc_low.append(x_temp_low)
+		#IPython.embed()
+
+	return np.array(unc_up), np.array(unc_low)
 
 
-	fig = plt.figure(figsize=plt.figaspect(1))  # Square figure
-	ax = fig.add_subplot(111, projection='3d')
 
-	coefs = (1, 2, 2)  # Coefficients in a0/c x**2 + a1/c y**2 + a2/c z**2 = 1 
-	# Radii corresponding to the coefficients:
-	rx, ry, rz = 1/np.sqrt(coefs)
+def get_traj_unc_sets_tp1(init_traj, mus, sigmas, max_x_lin, Lip_sigma, Lip_grad_mu):
+	unc_up = []
+	unc_low = []
+	x_temp_up = 0
+	x_temp_low = 0
+	
+	ell_x_u = np.max([np.linalg.norm(init_traj[0]-max_x_lin), np.linalg.norm(init_traj[0]+max_x_lin)])
+	ell_x_u = max_x_lin
+	x_temp_1 = mus[0] + 2*(sigmas[0] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
+	x_temp_2 = mus[0] - 2*(sigmas[0] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
+	unc_up.append(x_temp_1)
+	unc_low.append(x_temp_2)
+		#IPython.embed()
 
-	# Set of all spherical angles:
-	u = np.linspace(0, 2 * np.pi, 100)
-	v = np.linspace(0, np.pi, 100)
-
-	# Cartesian coordinates that correspond to the spherical angles:
-	# (this is the equation of an ellipsoid):
-	x = rx * np.outer(np.cos(u), np.sin(v))
-	y = ry * np.outer(np.sin(u), np.sin(v))
-	z = rz * np.outer(np.ones_like(u), np.cos(v))
-
-	# Plot:
-	ax.plot_surface(x, y, z,  rstride=4, cstride=4, color='b')
-
-	# Adjustment of the axes, so that they all have the same span:
-	max_radius = max(rx, ry, rz)
-	for axis in 'xyz':
-		getattr(ax, 'set_{}lim'.format(axis))((-max_radius, max_radius))
-
-	plt.show()
+	return np.array(unc_up), np.array(unc_low)
 
 
-def lin_dynamics(inter, curve_data):
 
-	# return the linearized dynamics around the previous iteration points
-	T  =len(inter)
-	b1 = np.zeros(T)
-	b2 = np.zeros(T)
-	n = len(curve_data[0,:])
-	max_val = np.max(curve_data[:,0])
-	min_val = np.min(curve_data[:,0])
-	for i in range(T):	
-		ind = [j for j,v in enumerate(curve_data[:,0]) if v>inter[i]]
-		if ind ==[]:
-			# intercept nad slope is computed by averaging two adjacent points
-			if inter[i] > max_val:
-				b1[i]=(curve_data[-1,1]+curve_data[-2,1])/2
-				b2[i]=(curve_data[-1,2]+curve_data[-2,2])/2
-			elif inter[i] < min_val:
-				b1[i]=(curve_data[0,1]+curve_data[1,1])/2
-				b2[i]=(curve_data[0,2]+curve_data[1,2])/2
-		else:
-			ind = ind[0]
-			b1[i]=(curve_data[ind,1]+curve_data[ind-1,1])/2
-			b2[i]=(curve_data[ind,2]+curve_data[ind-1,2])/2
-	return b1,b2
+def get_Jacobian(X1, y1, init_traj, eps=0.01):
+	x_Jac = init_traj
+	n = x_Jac.shape
+	u_Jac = np.zeros(n)
+	X2_big = np.stack((x_Jac+eps, u_Jac), axis=-1)
+	mu_x_p, _ = GP(X1, y1, X2_big, exp_kernel, 0.2, 10)
+	X2_big = np.stack((x_Jac-eps, u_Jac), axis=-1)
+	mu_x_m, _ = GP(X1, y1, X2_big, exp_kernel, 0.2, 10)
+	X2_big = np.stack((x_Jac, u_Jac+eps), axis=-1)
+	mu_u_p, _ = GP(X1, y1, X2_big, exp_kernel, 0.2, 10)
+	X2_big = np.stack((x_Jac, u_Jac-eps), axis=-1)
+	mu_u_m, _ = GP(X1, y1, X2_big, exp_kernel, 0.2, 10)
+	X2_big = np.stack((x_Jac, u_Jac), axis=-1)
+	mu, _ = GP(X1, y1, X2_big, exp_kernel, 0.2, 10)
 
-
-def lin_dynamics_local(inter, curve_data, l_x, l_y, F, h):
-
-	# return the linearized dynamics around the previous iteration points
-	T  = len(inter)
-	b1 = np.zeros(T)
-	b2 = np.zeros(T)
-	x_min = np.zeros(T)
-	x_max = np.zeros(T)
-	max_val = np.max(l_x)
-	min_val = np.min(l_x)
-	for i in range(T):	
-		ind = [j for j,v in enumerate(l_x) if v>=inter[i]]
-		if ind ==[]:
-			print("Check this, point out of domain")
-			# if inter[i] > max_val:
-			# 	b1[i]=(curve_data[-1,1]+curve_data[-2,1])/2
-			# 	b2[i]=(curve_data[-1,2]+curve_data[-2,2])/2
-			# elif inter[i] < min_val:
-			# 	b1[i]=(curve_data[0,1]+curve_data[1,1])/2
-			# 	b2[i]=(curve_data[0,2]+curve_data[1,2])/2
-		else:
-			ind = [j for j,v in enumerate(l_x) if v>=inter[i]][0]
-			F_mid = F[ind]
-			F_up = F_mid + h/2
-			F_lo = F_mid - h/2
-			if F_up > np.max(F):
-				F_up = np.max(F) # for the points close to the right boundary of the domain	
-			if F_lo <= np.min(F):
-				F_lo = np.min(F) # for the points close to the left boundary of the domain	
-			#IPython.embed()		
-			ind_up = [j for j,v in enumerate(F) if v>=F_up][0]
-			ind_lo = [j for j,v in enumerate(F) if v>=F_lo][0]
-			slope = (l_y[ind_up]-l_y[ind_lo])/(l_x[ind_up]-l_x[ind_lo]) # slope of interpolation line
-			intercept = l_y[ind_lo]-slope*l_x[ind_lo] # intercept of interpolation line
-			x_min[i] = l_x[ind_lo]
-			x_max[i] = l_x[ind_up]
-			b1[i] = intercept
-			b2[i] = slope
-	return b1, b2, x_min, x_max# def interp_grid(F, x, N_interp, x_grid, y_grid):
-
-def epsilon_stat(inter, l_x, low_ci, upp_ci, x_low, x_upp):
-
-	# return vector of max statistical error in liearization regions
-	n = len(inter)
-	max_x = np.max(l_x)
-	min_x = np.min(l_x)
-	stat_err = np.zeros(len(inter))
-	diff_ci = upp_ci-low_ci
-	for i in range(n):
-		x_lo = x_low[i]#inter[i] - hx[i]/2 # check not below above threshold
-		x_up = x_upp[i]#inter[i] + hx[i]/2
-		if x_lo < min_x:
-			x_lo = x_min
-		if x_up > max_x:
-			x_up = max_x
-		# or could return them from previous function
-		ind_up = [j for j,v in enumerate(l_x) if v>=x_up][0]
-		ind_lo = [j for j,v in enumerate(l_x) if v>=x_lo][0]
-		stat_err[i] = np.max(diff_ci[ind_lo:ind_up+1])
-	return stat_err
-
-def epsilon_lin(inter, l_x, l_y, x_low, x_upp, b1, b2):
-
-	# return vector if max interpolation error in liearization regions
-	n = len(inter)
-	max_x = np.max(l_x)
-	min_x = np.min(l_x)
-	lin_err = np.zeros(len(inter))
-	for i in range(n):
-		x_lo = x_low[i] # inter[i] - hx[i]/2# check not below above threshold
-		x_up = x_upp[i] # inter[i] + hx[i]/2
-		if x_lo < min_x:
-			x_lo = x_min
-		if x_up > max_x:
-			x_up = max_x
-		ind_up = [j for j, v in enumerate(l_x) if v >= x_up][0]
-		ind_lo = [j for j, v in enumerate(l_x) if v >= x_lo][0]
-		lin_x = np.linspace(l_x[ind_lo], l_x[ind_up], ind_up-ind_lo+1) # evaluate the function of a grid and get largest interpolation error
-		# find index of max absolute difference between \hat{f}(x) and \hat{f}_{lin}(x) 
-		ind_max = np.argmax(np.abs(l_y[ind_lo:ind_up+1]-b1[i]-b2[i]*lin_x))
-		#lin_err[i] = np.max(np.abs(np.cbrt(l_x[ind_lo:ind_up+1])-l_y[ind_lo:ind_up+1]))
-		temp = l_y[ind_lo:ind_up+1] - b1[i] - b2[i]*lin_x
-		lin_err[i] = temp[ind_max] # return signed error
-	return(lin_err)
-
+	J_x = 0.5*(mu_x_p-mu_x_m)/eps
+	J_u = 0.5*(mu_u_p-mu_u_m)/eps
+	return mu, J_x, J_u
 
 
 def minkowski_sum(x_temp_up, x_temp_low, x_temp_1, x_temp_2):
@@ -488,60 +398,16 @@ def minkowski_sum(x_temp_up, x_temp_low, x_temp_1, x_temp_2):
 	x_temp_low = np.min((vertex_1, vertex_2, vertex_3, vertex_4))
 	return x_temp_up, x_temp_low
 	
-def minkowski_diff(x_temp_up, x_temp_low, x_temp_1, x_temp_2):
-
-	# minkowski difference function
-	# minksowski difference between two intervals [x_temp_low,x_temp_up] and 
-	# [x_temp_1, x_temp_2]
-	vertex_1 = x_temp_up - x_temp_1
-	vertex_2 = x_temp_up - x_temp_2
-	vertex_3 = x_temp_low - x_temp_1
-	vertex_4 = x_temp_low - x_temp_2
-	x_temp_up =  np.min((vertex_1, vertex_2)) 
-	x_temp_low =  np.max((vertex_3, vertex_4))
-	return x_temp_up, x_temp_low	
-
-
-def robust_eps(inter, l_x, l_y, T, stat_err, lin_err, b1, b2, upper_noise, lower_noise):
-	# robust reachable sets 
-	x_epsilon_up = np.zeros(len(inter)+1)
-	x_epsilon_low = np.zeros(len(inter)+1)
-	x_temp_up = 0
-	x_temp_low = 0
-	for i in range(0, len(inter)):
-		# was
-		#w_temp_up =  np.abs(lin_err[i]) + stat_err[i]/2 #+ 0.05#<-- very worst case # initialize upper and lower bound of Epsilon sets
-		#w_temp_low =  - np.abs(lin_err[i]) - stat_err[i]/2 #- 0.05# <- no inter[i] + needed ?
-		if lin_err[i]>0:
-			w_temp_up =  np.abs(lin_err[i]) + stat_err[i]/2 + upper_noise#+ 0.02 #+ 0.05#<-- very worst case # initialize upper and lower bound of Epsilon sets
-			w_temp_low =  - stat_err[i]/2 + lower_noise#- 0.02#- 0.05# <- no inter[i] + needed ?
-		else:
-			w_temp_up =  stat_err[i]/2 + upper_noise#+ 0.02 #+ 0.05#<-- very worst case # initialize upper and lower bound of Epsilon sets
-			w_temp_low =  - np.abs(lin_err[i]) - stat_err[i]/2 + lower_noise#- 0.02#- 0.05# <- no inter[i] + needed ?
-		#IPython.embed()
-		# for j in range(i,T): # check indices
-		#if(lin_err[j])>0: # max for now for lin but should be signed		
-		x_temp_1 = b2[i]*x_epsilon_up[i]
-		x_temp_2 = b2[i]*x_epsilon_low[i]
-		x_temp_up, x_temp_low = minkowski_sum(x_temp_1, x_temp_2, w_temp_up, w_temp_low) # check order, was x_temp_up, x_temp_low, shrink?
-		#IPython.embed()
-		x_epsilon_up[i+1] = x_temp_up
-		x_epsilon_low[i+1] = x_temp_low
-	return x_epsilon_up, x_epsilon_low
-
-				
 
 
 
-
-def LR_MPC(x_upptemp, x_lowtemp, b1, b2, x_low, x_upp, x_epsilon_up, x_epsilon_low, x_max, x_min, T_mpc, x_0, j, xf, slope, intercept, flag):
+def STP_MPC(mu, J_x, J_u, x_max, x_min, init_traj, T_mpc, x_0, xf):
 	feas_flag = True
-	root_cnst = 1.0
-	Q = 1 # state cost
-	R = 100 # control cost
+	Q = 10 # state cost
+	R = 1 # control cost
 	dt = 1.0 # time step
 	#flag = 3
-	u_thresh = 140.0
+	u_thresh = 10.0
 
 	x = Variable((1, T_mpc+1)) # state variable
 	u = Variable((1, T_mpc)) # control variable
@@ -552,36 +418,9 @@ def LR_MPC(x_upptemp, x_lowtemp, b1, b2, x_low, x_upp, x_epsilon_up, x_epsilon_l
 	for t in range(T_mpc):
 		cost += Q*norm(x[:,t] - xf)**2 + R*norm(u[:,t])**2#Q*norm(x[:,t]-d[:,t])**2 +R*norm(u[:,t]-(-1/dt*np.cbrt(root_cnst*xf)-1/(dt*3)*np.cbrt(root_cnst)*(np.cbrt(xf))**(-2)*(d[:,t]-xf)+xf))**2 
 		# nonlinear cases
-		if flag <= 2:
-			constr += [x[:,t+1] == b1[t]+b2[t]*x[:,t] + dt*u[:,t],
-					   norm_inf(u[:,t]) <= u_thresh, norm_inf(x[:,t]) <= np.max(x_max)]
-					  # d[:,t]<=x_upptemp, d[:,t]>=x_lowtemp]
-		# just linear case
-		else:	
-			constr += [x[:,t+1] == intercept+slope*x[:,t] + dt*u[:,t],
-					   norm_inf(u[:,t]) <= u_thresh, norm_inf(x[:,t]) <= np.max(x_max)]
-					   #d[:,t]<=x_upptemp, d[:,t]>=x_lowtemp]
-		if flag ==1 :
-			if t>=1:
-				diff = minkowski_diff(x_upp[t], x_low[t], x_epsilon_up[t], x_epsilon_low[t])
-				# if set empty
-				if diff[1] > diff[0]:
-					print('------------ empty set ------------')
-					#infeas[ii] = 1
-					print('At MPC iteration {} the problem was infeasible.'.format(j))
-					print('------------ empty set ------------')
-					feas_flag = False
-					#IPython.embed()
-				constr += [x[:,t][0]<=diff[0], x[:,t][0]>=diff[1]]
-
-	
-	# Last constraint at time T	????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
-	if flag <= 2:
-		diff = minkowski_diff(x_upptemp, x_lowtemp, x_epsilon_up[T_mpc], x_epsilon_low[T_mpc])
-		constr += [x[:,T_mpc][0]<=diff[0], x[:,T_mpc][0]>=diff[1]]#, d[:,T_mpc]<=x_upptemp, d[:,T_mpc]>=x_lowtemp] #x[:,T] <= 10**(-5),x[:,T] >= -10**(-5)
-	else:
-		#constr += [d[:,T_mpc] <= x_upptemp, d[:,T_mpc] >= x_lowtemp] 
-		constr += [x[:,T_mpc][0]<=x_upptemp, x[:,T_mpc][0]>=x_lowtemp]
+		constr += [x[:,t+1] == mu[t] + J_x[t]*(x[:,t]-init_traj[t]) + J_u[t]*u[:,t],# x[:,t] <= x_max[t], x[:,t] >= x_min[t],
+			   norm_inf(u[:,t]) <= u_thresh]
+	constr += [x[:,T_mpc][0] <= xf + 0.1, x[:,T_mpc][0] >= xf - 0.1]
 	cost += Q*norm(x[:,T_mpc] - xf)**2
 	
 	problem = Problem(Minimize(cost), constr)
@@ -594,4 +433,7 @@ def LR_MPC(x_upptemp, x_lowtemp, b1, b2, x_low, x_upp, x_epsilon_up, x_epsilon_l
 	# print('******************************')
 	# print('Actual end State is {}.'.format(x.value[0][0]))
 	# print('******************************')
-	return x.value[0], u.value[0], feas_flag
+	return x.value[0], u.value[0]
+
+
+
