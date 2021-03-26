@@ -3,23 +3,7 @@ import numpy as np
 from cvxpy import *
 import IPython
 from cvxpy.atoms.norm_inf import norm_inf
-import matplotlib.pyplot as plt
-import scipy.stats as stats
-import statsmodels.api as sm
-from scipy.optimize import curve_fit
-from cvxpy.atoms.elementwise.power import power
-from fractions import Fraction
-from lwls import *
-import sys
-import seaborn as sns
-#from video_plot.py import *
-import matplotlib.cm as cm
-np.set_printoptions(threshold=sys.maxsize)
-import matplotlib.animation as animation
 from utils import *
-import scipy.stats as stats
-from LR_MPC import *
-from LR_MPC_2 import *
 import os
 
 # Check if a storedData folder exist.	
