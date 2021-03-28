@@ -63,7 +63,7 @@ def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, mu, sigma, method='random
 
 	else:
 		# generate random data
-		x_0 = 0#np.random.uniform(low=-6.0, high=6.0)# np.array([x0 + init_var*np.random.rand()]) # initial state (position and velocity), 
+		x_0 = 0
 		x = np.zeros((T,2)) # vector of states and control input
 		y = np.zeros((T,1))
 		noise  = np.random.normal(mu, sigma, 1)
@@ -88,8 +88,6 @@ def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, mu, sigma, method='random
 		# save trajectory
 		x_trajectories = x
 		y_trajectories = y
-
-
 		print('random')
 
 	return x_trajectories, y_trajectories
@@ -397,7 +395,7 @@ def minkowski_sum(x_temp_up, x_temp_low, x_temp_1, x_temp_2):
 
 
 
-def STP_MPC(mu, J_x, J_u, x_max, x_min, init_traj, T_mpc, x_0, xf):
+def STP_MPC(mu, J_x, J_u, x_max, x_min, init_traj, T_mpc, x_0, xf, Q, R):
 	feas_flag = True
 	Q = 10 # state cost
 	R = 1 # control cost
