@@ -32,7 +32,7 @@ from cvxpy.atoms.elementwise.power import power
 
 
 
-def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, upper, lower, mu, sigma, method='random'):
+def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, mu, sigma, method='random'):
 
 
 	if method == 'control':
@@ -53,8 +53,6 @@ def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, upper, lower, mu, sigma, 
 			#u[:,i-1] = - np.cbrt(x[:, i-1]) - alpha*(x[:,i-1]-xf)
 			x[i,0] = y[i-1,0]
 			x[i,1] = - np.cbrt(alpha_c*x[i,0]) - alpha*(x[i,0]-xf)
-			# upper = 0.05
-			# lower = -0.05
 			noise  = np.random.normal(mu, sigma, 1)
 			y[i,0] = np.cbrt(alpha_c*x[i,0])  + dt*x[i,1] + noise
 
@@ -81,8 +79,6 @@ def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, upper, lower, mu, sigma, 
 			
 			x[i,0] = y[i-1,0]
 			x[i,1] = np.random.uniform(low=-0.5, high=0.5)
-			# upper = 0.05
-			# lower = -0.05
 			noise  = np.random.normal(mu, sigma, 1)#stats.truncnorm((lower - mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
 			if (x[i,0]>=-2) and (x[i,0]<=2):
 				noise = 5*np.random.normal(mu, sigma, 1)
