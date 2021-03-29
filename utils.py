@@ -407,7 +407,49 @@ def count_failures(res_x, res_x_low, res_x_high):
 	return n - count_succ, n
 
 
-def get_Lipschitz_est(x_trajectories, y_trajectories, delta, n, m):
+def get_Lipschitz_est(x_trajectories, y_trajectories, delta, n, est_fun, sigma_noise, scale):
+	
+	x_min = np.min(x_trajectories[:,0])
+	x_max = np.max(x_trajectories[:,0])
+	u_min = np.min(x_trajectories[:,1])
+	u_max = np.max(x_trajectories[:,1])
+	partial_sigma_x = []
+	partial_sigma_u = []
+	partial_grad_mu_x = []
+	partial_grad_mu_u = []
+	
+	for i in range(n):
+		x = np.random.uniform(x_min, x_max)
+		x_p = x + 2*delta
+		x_m = x + delta
+
+		u = np.random.uniform(u_min, u_max)
+		u_p = u + 2*delta
+		u_m = u + delta
+
+		X2_big = np.zeros((6, 2))
+		X2_big[0, 0] = x
+		X2_big[1, 0] = x_p
+		X2_big[0, 1] = u
+		X2_big[1, 1] = u
+		X2_big[2, 0] = x
+		X2_big[3, 0] = x
+		X2_big[2, 1] = u
+		X2_big[3, 1] = u_p
+		X2_big[4, 0] = x_m
+		X2_big[4, 1] = u
+		X2_big[5, 0] = x
+		X2_big[5, 1] = u_m
+
+		mu, sigma = est_fun(x_trajectories, y_trajectories, X2_big, exp_kernel, sigma_noise, scale, K=10)
+
+		partial_sigma_x.append((sigma[1]-sigma[0])/(delta))
+		partial_sigma_u.append((sigma[3]-sigma[2])/(delta))
+
+		partial_grad_mu_x.append((sigma[1]-2*sigma[4]+sigma[0])/(delta**2))
+		partial_grad_mu_u.append((sigma[3]-2*sigma[5]+sigma[2])/(delta**2))
+
+	return np.max(partial_sigma_x), np.max(partial_sigma_u), np.max(partial_grad_mu_x), np.max(partial_grad_mu_u)
 
 
 	

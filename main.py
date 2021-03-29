@@ -170,6 +170,8 @@ def main():
 	for k in range(N_exp):
 	    alg = ML_Control(est_fun = GP)
 	    x_trajectories, y_trajectories = alg.obtain_trajectories()
+	    m1, m2, l1 ,l2  = get_Lipschitz_est(x_trajectories, y_trajectories, 0.01, 100, GP, 0.1, 10)
+	    IPython.embed()
 	    x_mpc, low_end, high_end = alg.control(x_trajectories, y_trajectories)
 	    res_x.append(x_mpc[1:])
 	    res_x_low.append(low_end)
