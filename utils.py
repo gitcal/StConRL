@@ -32,7 +32,7 @@ from cvxpy.atoms.elementwise.power import power
 
 
 
-def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, mu, sigma, method='random'):
+def gather_trajectories(x_0, x_f, dt, n_sim, T, alpha_c, mu, sigma, method='random'):
 
 
 	if method == 'control':
@@ -40,11 +40,11 @@ def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, mu, sigma, method='random
 		x_trajectories = [] # save all trajectories
 		y_trajectories = []
 
-		x_0 = np.array([x0 + init_var*np.random.rand()]) # initial state (position and velocity), 
-		x = np.zeros((T,2)) # vector of states and control input
-		y = np.zeros((T,1))
+		x_0 = np.array([x_0 + init_var*np.random.rand()]) # initial state (position and velocity), 
+		x = np.zeros((T, 2)) # vector of states and control input
+		y = np.zeros((T, 1))
 		x[0, 0] = x_0 # initial state
-		x[0,1] = - np.cbrt(alpha_c*x[0,0]) - alpha*(x[0,0]-xf)
+		x[0,1] = - np.cbrt(alpha_c*x[0,0]) - alpha*(x[0,0]-x_f)
 		# noise  = stats.truncnorm((lower - mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
 		noise  = np.random.normal(mu, sigma, 1)
 		y[0,0] = np.cbrt(alpha_c*x[0,0])  + dt*x[0,1] + noise
@@ -52,7 +52,7 @@ def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, mu, sigma, method='random
 		for i in range(1,T):
 			#u[:,i-1] = - np.cbrt(x[:, i-1]) - alpha*(x[:,i-1]-xf)
 			x[i,0] = y[i-1,0]
-			x[i,1] = - np.cbrt(alpha_c*x[i,0]) - alpha*(x[i,0]-xf)
+			x[i,1] = - np.cbrt(alpha_c*x[i,0]) - alpha*(x[i,0]-x_f)
 			noise  = np.random.normal(mu, sigma, 1)
 			y[i,0] = np.cbrt(alpha_c*x[i,0])  + dt*x[i,1] + noise
 
@@ -63,9 +63,8 @@ def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, mu, sigma, method='random
 
 	else:
 		# generate random data
-		x_0 = 0
-		x = np.zeros((T,2)) # vector of states and control input
-		y = np.zeros((T,1))
+		x = np.zeros((T, 2)) # vector of states and control input
+		y = np.zeros((T, 1))
 		noise  = np.random.normal(mu, sigma, 1)
 		# if x_0>=-2 and x_0<=2:
 		# 		noise = 30*np.random.normal(mu, sigma, 1)
@@ -74,21 +73,20 @@ def gather_trajectories(x0, xf, dt, n_sim, T, alpha_c, mu, sigma, method='random
 		
 		y[0,0] = 5*np.cbrt(alpha_c*x[0,0])  + dt*x[0,1] + noise
 		
-		for i in range(1,T):
+		for i in range(1, T):
 			#u[:,i-1] = - np.cbrt(x[:, i-1]) - alpha*(x[:,i-1]-xf)
 			
 			x[i,0] = y[i-1,0]
 			x[i,1] = np.random.uniform(low=-0.5, high=0.5)
 			noise  = np.random.normal(mu, sigma, 1)#stats.truncnorm((lower - mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
 			if (x[i,0]>=-2) and (x[i,0]<=2):
-				noise = 5*np.random.normal(mu, sigma, 1)
+			 	noise = 5*np.random.normal(mu, sigma, 1)
 
 			y[i,0] = 5*np.cbrt(alpha_c*x[i,0])  + dt*x[i,1] + noise#np.random.normal(mu, sigma, 1)
 
 		# save trajectory
 		x_trajectories = x
 		y_trajectories = y
-		print('random')
 
 	return x_trajectories, y_trajectories
 
@@ -103,7 +101,7 @@ def exp_kernel(xa, xb, scale):
 
 
 
-def GP(X1, y1, X2_big, kernel, sigma_noise, scale):
+def GP(X1, y1, X2_big, kernel, sigma_noise, scale, K=10):
 	"""
 	Calculate the posterior mean and covariance matrix for y2
 	based on the corresponding input X2, the noisy observations 
@@ -140,7 +138,7 @@ def GP(X1, y1, X2_big, kernel, sigma_noise, scale):
 
 
 
-def STP(X1, y1, X2_big, kernel, sigma_noise, scale):
+def STP(X1, y1, X2_big, kernel, sigma_noise, scale, K=10):
 	"""
 	Calculate the posterior mean and covariance matrix for y2
 	based on the corresponding input X2, the noisy observations 
@@ -180,7 +178,7 @@ def STP(X1, y1, X2_big, kernel, sigma_noise, scale):
 
 
 
-def GP_local(X1_big, y1_big, X2_big, K, kernel, sigma_noise, scale):
+def GP_local(X1_big, y1_big, X2_big, kernel, sigma_noise, scale, K=10):
 	"""
 	Calculate the posterior mean and covariance matrix for y2
 	based on the corresponding input X2, the noisy observations 
@@ -217,7 +215,7 @@ def GP_local(X1_big, y1_big, X2_big, K, kernel, sigma_noise, scale):
 
 
 
-def STP_local(X1_big, y1_big, X2_big, K, kernel, sigma_noise, scale):
+def STP_local(X1_big, y1_big, X2_big, kernel, sigma_noise, scale, K=10):
 	"""
 	Calculate the posterior mean and covariance matrix for y2
 	based on the corresponding input X2, the noisy observations 
@@ -379,6 +377,7 @@ def get_Jacobian(X1, y1, init_traj, eps=0.01):
 	return mu, J_x, J_u
 
 
+
 def minkowski_sum(x_temp_up, x_temp_low, x_temp_1, x_temp_2):
 
 	# minkowski sum function
@@ -391,6 +390,26 @@ def minkowski_sum(x_temp_up, x_temp_low, x_temp_1, x_temp_2):
 	x_temp_up = np.max((vertex_1, vertex_2, vertex_3, vertex_4)) 
 	x_temp_low = np.min((vertex_1, vertex_2, vertex_3, vertex_4))
 	return x_temp_up, x_temp_low
+
+
+
+def count_failures(res_x, res_x_low, res_x_high):
+
+	res_x_flist = [x for y in res_x for x in y]
+	res_x_low_flist = [x for y in res_x_low for x in y]
+	res_x_high_flist = [x for y in res_x_high for x in y]
+	n = len(res_x_flist)
+	count_succ = 0
+	for i in range(n):
+		if res_x_flist[i] <= res_x_high_flist[i] and  res_x_flist[i] >= res_x_low_flist[i]:
+			count_succ += 1
+
+	return n - count_succ, n
+
+
+def get_Lipschitz_est(x_trajectories, y_trajectories, delta, n, m):
+
+
 	
 
 
@@ -418,7 +437,7 @@ def STP_MPC(mu, J_x, J_u, x_max, x_min, init_traj, T_mpc, x_0, xf, Q, R):
 	cost += Q*norm(x[:,T_mpc] - xf)**2
 	
 	problem = Problem(Minimize(cost), constr)
-	problem.solve(solver=OSQP, verbose=True, eps_abs = 1.0e-02, eps_rel = 1.0e-02, eps_prim_inf = 1.0e-02) 
+	problem.solve(solver=OSQP, verbose=False)# eps_abs = 1.0e-02, eps_rel = 1.0e-02, eps_prim_inf = 1.0e-02 
 	# print('Total cost in iteration {} is {}.'.format(j, problem.value))
 	# print('******************************')
 	# print('MPC iteration {}.'.format(j))
