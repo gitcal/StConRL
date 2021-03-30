@@ -19,16 +19,6 @@ from scipy import spatial
 from cvxpy import *
 from cvxpy.atoms.norm_inf import norm_inf
 from cvxpy.atoms.elementwise.power import power
-# import matplotlib.pyplot as plt
-# import matplotlib.animation as animation
-# compute function F(x)=\frac{\int_a^x(\hat{f}''(t))^{2/5}dt}{\int_a^b(\hat{f}''(t))^{2/5}dt}   (**)
-# import matplotlib.pylab as plt
-# import matplotlib.cm as cm
-# from mpl_toolkits.mplot3d import Axes3D
-# from mpl_toolkits.mplot3d.art3d import Poly3DCollection # New import
-# from mpl_toolkits.mplot3d import Axes3D
-# from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-
 
 
 
@@ -50,7 +40,6 @@ def gather_trajectories(x_0, x_f, dt, n_sim, T, alpha_c, mu, sigma, method='rand
 		y[0,0] = np.cbrt(alpha_c*x[0,0])  + dt*x[0,1] + noise
 
 		for i in range(1,T):
-			#u[:,i-1] = - np.cbrt(x[:, i-1]) - alpha*(x[:,i-1]-xf)
 			x[i,0] = y[i-1,0]
 			x[i,1] = - np.cbrt(alpha_c*x[i,0]) - alpha*(x[i,0]-x_f)
 			noise  = np.random.normal(mu, sigma, 1)
@@ -79,8 +68,8 @@ def gather_trajectories(x_0, x_f, dt, n_sim, T, alpha_c, mu, sigma, method='rand
 			x[i,0] = y[i-1,0]
 			x[i,1] = np.random.uniform(low=-0.5, high=0.5)
 			noise  = np.random.normal(mu, sigma, 1)#stats.truncnorm((lower - mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
-			if (x[i,0]>=-2) and (x[i,0]<=2):
-			 	noise = 5*np.random.normal(mu, sigma, 1)
+			# if (x[i,0]>=-2) and (x[i,0]<=2):
+			#  	noise = 5*np.random.normal(mu, sigma, 1)
 
 			y[i,0] = 5*np.cbrt(alpha_c*x[i,0])  + dt*x[i,1] + noise#np.random.normal(mu, sigma, 1)
 
@@ -128,7 +117,6 @@ def GP(X1, y1, X2_big, kernel, sigma_noise, scale, K=10):
 		# Compute posterior mean
 		mu2 = solved @ y1
 		# Compute the posterior covariance
-	   
 		Sigma22 = kernel(X2, X2, scale)
 		Sigma2 = Sigma22 + sigma_noise  - (solved @ Sigma12)
 		mus[ind] = mu2
@@ -154,9 +142,6 @@ def STP(X1, y1, X2_big, kernel, sigma_noise, scale, K=10):
 	ind = 0
 	dof = 5
 	for X2 in X2_big:
-		# dists = np.linalg.norm(X2-X1_big, axis=1)
-		# inds = np.argpartition(dists, k-1)
-		# inds = inds[0:k]
 		
 		Sigma_11 = kernel(X1, X1, scale)# check whtehr these tw oshould break
 		Sigma11 = Sigma_11 + sigma_noise * np.eye(k1)
@@ -319,7 +304,7 @@ def plot_fit(X1_big, y1_big, sigma):
 
 
 
-def get_traj_unc_sets(init_traj, mus, sigmas, max_x_lin, Lip_sigma, Lip_grad_mu):
+def get_traj_unc_sets(init_traj, mus, sigmas, beta, max_x_lin, Lip_sigma, Lip_grad_mu):
 	unc_up = []
 	unc_low = []
 	x_temp_up = 0
@@ -327,8 +312,8 @@ def get_traj_unc_sets(init_traj, mus, sigmas, max_x_lin, Lip_sigma, Lip_grad_mu)
 	for i in range(len(init_traj)):
 		ell_x_u = np.max([np.linalg.norm(init_traj[i]-max_x_lin), np.linalg.norm(init_traj[i]+max_x_lin)])
 		ell_x_u = max_x_lin
-		x_temp_1 = mus[i] + 2*(sigmas[i] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
-		x_temp_2 = mus[i] - 2*(sigmas[i] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
+		x_temp_1 = mus[i] + beta*(sigmas[i] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
+		x_temp_2 = mus[i] - beta*(sigmas[i] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
 
 		x_temp_up, x_temp_low = minkowski_sum(x_temp_up, x_temp_low, x_temp_1, x_temp_2)
 		unc_up.append(x_temp_up)
@@ -339,7 +324,7 @@ def get_traj_unc_sets(init_traj, mus, sigmas, max_x_lin, Lip_sigma, Lip_grad_mu)
 
 
 
-def get_traj_unc_sets_tp1(init_traj, mus, sigmas, max_x_lin, Lip_sigma, Lip_grad_mu):
+def get_traj_unc_sets_tp1(init_traj, mus, sigmas, beta, max_x_lin, Lip_sigma, Lip_grad_mu):
 	unc_up = []
 	unc_low = []
 	x_temp_up = 0
@@ -347,8 +332,8 @@ def get_traj_unc_sets_tp1(init_traj, mus, sigmas, max_x_lin, Lip_sigma, Lip_grad
 	
 	ell_x_u = np.max([np.linalg.norm(init_traj[0]-max_x_lin), np.linalg.norm(init_traj[0]+max_x_lin)])
 	ell_x_u = max_x_lin
-	x_temp_1 = mus[0] + 2*(sigmas[0] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
-	x_temp_2 = mus[0] - 2*(sigmas[0] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
+	x_temp_1 = mus[0] + beta*(sigmas[0] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
+	x_temp_2 = mus[0] - beta*(sigmas[0] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
 	unc_up.append(x_temp_1)
 	unc_low.append(x_temp_2)
 		#IPython.embed()
@@ -449,7 +434,10 @@ def get_Lipschitz_est(x_trajectories, y_trajectories, delta, n, est_fun, sigma_n
 		partial_grad_mu_x.append((sigma[1]-2*sigma[4]+sigma[0])/(delta**2))
 		partial_grad_mu_u.append((sigma[3]-2*sigma[5]+sigma[2])/(delta**2))
 
-	return np.max(partial_sigma_x), np.max(partial_sigma_u), np.max(partial_grad_mu_x), np.max(partial_grad_mu_u)
+	Lip_sigma = np.sqrt(np.max(partial_grad_mu_x) + np.max(partial_grad_mu_u))
+	Lip_grad_mu = np.sqrt(np.max(partial_sigma_x) + np.max(partial_sigma_u))
+
+	return Lip_sigma, Lip_grad_mu
 
 
 	
