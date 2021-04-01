@@ -103,8 +103,8 @@ class ML_Control(object):
 	def control(self, x_trajectories, y_trajectories):
 
 		x_mpc = np.zeros(self.mpc_sim+1) # mpc trajectory
-		x_0 = self.x_0
-		x_mpc[0] = x_0
+		x_0 = self.x_0 # init state
+		x_mpc[0] = x_0 # init state
 		constr = [] # constraints
 
 		# Lipschitz constants
@@ -116,13 +116,13 @@ class ML_Control(object):
 		# initialize linearization points for first mpc iteration
 		init_traj = np.linspace(x_0, self.x_f, num=self.T_mpc)
 		# kinearize around trajectory
-		mus, J_x, J_u = get_Jacobian(x_trajectories, y_trajectories, init_traj)
+		mus, J_x, J_u = get_Jacobian(x_trajectories, y_trajectories, init_traj, self.est_fun, self.sigma, self.K)
 
 
 		low_end = []
 		high_end = []
 		for j in range(self.mpc_sim):
-			print("step {} of iteration".format(j/self.mpc_sim))	
+			print("step {} of iteration".format(j / self.mpc_sim))	
 			x_max = init_traj + self.max_x_lin
 			x_min = init_traj - self.max_x_lin
 			u_Jac = np.zeros(len(init_traj))
@@ -133,14 +133,13 @@ class ML_Control(object):
 			u_Jac_temp = u_opt[0]
 			X2_big_temp = np.stack((x_Jax_temp, u_Jac_temp), axis=-1)
 			X2_big_temp = np.expand_dims(X2_big_temp, 0)
-			#IPython.embed()
 			mus_temp, sigmas_temp = self.est_fun(x_trajectories, y_trajectories, X2_big_temp, exp_kernel, self.sigma, self.scale, self.K)
 			unc_sets_up, unc_sets_low = get_traj_unc_sets_tp1(init_traj, mus_temp, sigmas_temp, self.beta, self.max_x_lin, Lip_sigma, Lip_grad_mu)
 
 			low_end.append(unc_sets_low)
 			high_end.append(unc_sets_up)
 			init_traj = x_opt[1:]
-			mus, J_x, J_u = get_Jacobian(x_trajectories, y_trajectories, init_traj)
+			mus, J_x, J_u = get_Jacobian(x_trajectories, y_trajectories, init_traj, self.est_fun, self.sigma, self.K)
 			noise = np.random.normal(self.mu, self.sigma, 1)
 
 			# if (x_opt[0]>=-2) and (x_opt[0]<=2):

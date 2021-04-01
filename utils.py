@@ -330,10 +330,10 @@ def get_traj_unc_sets_tp1(init_traj, mus, sigmas, beta, max_x_lin, Lip_sigma, Li
 	x_temp_up = 0
 	x_temp_low = 0
 	
-	ell_x_u = np.max([np.linalg.norm(init_traj[0]-max_x_lin), np.linalg.norm(init_traj[0]+max_x_lin)])
+	ell_x_u = np.max([np.linalg.norm(init_traj[0] - max_x_lin), np.linalg.norm(init_traj[0] + max_x_lin)])
 	ell_x_u = max_x_lin
-	x_temp_1 = mus[0] + beta*(sigmas[0] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
-	x_temp_2 = mus[0] - beta*(sigmas[0] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
+	x_temp_1 = mus[0] + beta*(sigmas[0] + Lip_sigma*ell_x_u) + Lip_grad_mu*ell_x_u**2/2
+	x_temp_2 = mus[0] - beta*(sigmas[0] + Lip_sigma*ell_x_u) + Lip_grad_mu*ell_x_u**2/2
 	unc_up.append(x_temp_1)
 	unc_low.append(x_temp_2)
 		#IPython.embed()
@@ -342,23 +342,23 @@ def get_traj_unc_sets_tp1(init_traj, mus, sigmas, beta, max_x_lin, Lip_sigma, Li
 
 
 
-def get_Jacobian(X1, y1, init_traj, eps=0.01):
+def get_Jacobian(X1, y1, init_traj, est_func, sigma, K, eps=0.01):
 	x_Jac = init_traj
 	n = x_Jac.shape
 	u_Jac = np.zeros(n)
-	X2_big = np.stack((x_Jac+eps, u_Jac), axis=-1)
-	mu_x_p, _ = GP(X1, y1, X2_big, exp_kernel, 0.2, 10)
-	X2_big = np.stack((x_Jac-eps, u_Jac), axis=-1)
-	mu_x_m, _ = GP(X1, y1, X2_big, exp_kernel, 0.2, 10)
-	X2_big = np.stack((x_Jac, u_Jac+eps), axis=-1)
-	mu_u_p, _ = GP(X1, y1, X2_big, exp_kernel, 0.2, 10)
-	X2_big = np.stack((x_Jac, u_Jac-eps), axis=-1)
-	mu_u_m, _ = GP(X1, y1, X2_big, exp_kernel, 0.2, 10)
+	X2_big = np.stack((x_Jac + eps, u_Jac), axis=-1)
+	mu_x_p, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, K)
+	X2_big = np.stack((x_Jac - eps, u_Jac), axis=-1)
+	mu_x_m, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, K)
+	X2_big = np.stack((x_Jac, u_Jac + eps), axis=-1)
+	mu_u_p, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, K)
+	X2_big = np.stack((x_Jac, u_Jac - eps), axis=-1)
+	mu_u_m, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, K)
 	X2_big = np.stack((x_Jac, u_Jac), axis=-1)
-	mu, _ = GP(X1, y1, X2_big, exp_kernel, 0.2, 10)
+	mu, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, K)
 
-	J_x = 0.5*(mu_x_p-mu_x_m)/eps
-	J_u = 0.5*(mu_u_p-mu_u_m)/eps
+	J_x = 0.5 * (mu_x_p - mu_x_m)/eps
+	J_u = 0.5 * (mu_u_p - mu_u_m)/eps
 	return mu, J_x, J_u
 
 
