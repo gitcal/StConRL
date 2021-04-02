@@ -2,14 +2,14 @@
 This file contains a number of utility functions for the estimation and control tasks. More specifically:
 1) gather_trajectories: generates trajectories of the unknown system either by following a feedback control law
 	from different initial states or by applying random input in samples states of the unknown system.
-2) exp_kernel: is the exponentia lkernel function used in GP and STP estimation
-3) GP, STP, GP_local, STP_local are the Gaussian, Student-t, local Gaussian and local Student-t process regression
+2) exp_kernel: is the exponentia lkernel function used in GP and TP estimation
+3) GP, TP, GP_local, TP_local are the Gaussian, Student-t, local Gaussian and local Student-t process regression
 	estimation methods
 4) get_traj_unc_sets, get_traj_unc_sets_tp1: the first returns the uncertainrty sets for all the MPC trajectory 
 	while the latter only for the next time step
 5) get_Jacobian: computes the Jacobian matrix around specified lienarization points
 6) minkowski_sum: computes the Minkowski sum between two sets in R
-7) STP_MPC: implements the MPC controller
+7) TP_MPC: implements the MPC controller
 '''
 
 import numpy as np
@@ -30,7 +30,7 @@ def gather_trajectories(x_0, x_f, dt, n_sim, T, alpha_c, mu, sigma, method='rand
 		x_trajectories = [] # save all trajectories
 		y_trajectories = []
 
-		x_0 = np.array([x_0 + init_var*np.random.rand()]) # initial state (position and velocity), 
+		x_0 = np.array([x_0 + init_var * np.random.rand()]) # initial state (position and velocity), 
 		x = np.zeros((T, 2)) # vector of states and control input
 		y = np.zeros((T, 1))
 		x[0, 0] = x_0 # initial state
@@ -60,7 +60,7 @@ def gather_trajectories(x_0, x_f, dt, n_sim, T, alpha_c, mu, sigma, method='rand
 		x[0, 0] = x_0 # initial state
 		x[0,1] = np.random.uniform(low=-2.0, high=2.0)
 		
-		y[0,0] = 5*np.cbrt(alpha_c*x[0,0])  + dt*x[0,1] + noise
+		y[0,0] = 5 * np.cbrt(alpha_c*x[0,0])  + dt*x[0,1] + noise
 		
 		for i in range(1, T):
 			#u[:,i-1] = - np.cbrt(x[:, i-1]) - alpha*(x[:,i-1]-xf)
@@ -71,7 +71,7 @@ def gather_trajectories(x_0, x_f, dt, n_sim, T, alpha_c, mu, sigma, method='rand
 			# if (x[i,0]>=-2) and (x[i,0]<=2):
 			#  	noise = 5*np.random.normal(mu, sigma, 1)
 
-			y[i,0] = 5*np.cbrt(alpha_c*x[i,0])  + dt*x[i,1] + noise#np.random.normal(mu, sigma, 1)
+			y[i,0] = 5 * np.cbrt(alpha_c*x[i,0])  + dt*x[i,1] + noise#np.random.normal(mu, sigma, 1)
 
 		# save trajectory
 		x_trajectories = x
@@ -110,7 +110,6 @@ def GP(X1, y1, X2_big, kernel, sigma_noise, scale, K=10):
 		Sigma11 = kernel(X1, X1, scale) + sigma_noise * np.eye(k1)
 		# Kernel of observations vs to-predict
 		X2 = np.expand_dims(X2, 1).T
-		# IPython.embed()
 		Sigma12 = kernel(X1, X2, scale)
 		# Solve
 		solved = sc.linalg.solve(Sigma11, Sigma12, assume_a='pos').T
@@ -126,7 +125,7 @@ def GP(X1, y1, X2_big, kernel, sigma_noise, scale, K=10):
 
 
 
-def STP(X1, y1, X2_big, kernel, sigma_noise, scale, K=10):
+def TP(X1, y1, X2_big, kernel, sigma_noise, scale, K=10):
 	"""
 	Calculate the posterior mean and covariance matrix for y2
 	based on the corresponding input X2, the noisy observations 
@@ -155,7 +154,6 @@ def STP(X1, y1, X2_big, kernel, sigma_noise, scale, K=10):
 		# Compute the posterior covariance
 		Sigma22 = kernel(X2, X2, scale)
 		Sigma2 = (dof+y1.T@sc.linalg.solve(Sigma11,y1)-2)/(dof+len(X1)-2)*(Sigma22 + sigma_noise - (solved @ Sigma12))
-		#IPython.embed()
 		mus[ind] = mu2
 		Sigmas[ind] = Sigma2
 		ind += 1
@@ -163,7 +161,7 @@ def STP(X1, y1, X2_big, kernel, sigma_noise, scale, K=10):
 
 
 
-def GP_local(X1_big, y1_big, X2_big, kernel, sigma_noise, scale, K=10):
+def GP_local(X1_big, y1_big, X2_big, kernel, sigma_noise, scale, K):
 	"""
 	Calculate the posterior mean and covariance matrix for y2
 	based on the corresponding input X2, the noisy observations 
@@ -200,7 +198,7 @@ def GP_local(X1_big, y1_big, X2_big, kernel, sigma_noise, scale, K=10):
 
 
 
-def STP_local(X1_big, y1_big, X2_big, kernel, sigma_noise, scale, K=10):
+def TP_local(X1_big, y1_big, X2_big, kernel, sigma_noise, scale, K):
 	"""
 	Calculate the posterior mean and covariance matrix for y2
 	based on the corresponding input X2, the noisy observations 
@@ -231,7 +229,6 @@ def STP_local(X1_big, y1_big, X2_big, kernel, sigma_noise, scale, K=10):
 		# Compute the posterior covariance
 		Sigma22 = kernel(X2, X2, scale)
 		Sigma2 = (dof+y1.T@sc.linalg.solve(Sigma11,y1)-2)/(dof+len(X1)-2)*(Sigma22 + sigma_noise - (solved @ Sigma12))
-		#IPython.embed()
 		mus[ind] = mu2
 		Sigmas[ind] = Sigma2
 		ind += 1
@@ -249,9 +246,9 @@ def plot_fit(X1_big, y1_big, sigma):
 	y_temp = np.reshape(Y, (n*n))
 
 	X2_big = np.array(list(zip(x_temp, y_temp)))
-	# outputs = STP(X1_big, y1_big, X2_big, exp_kernel, sigma, 10)
+	# outputs = TP(X1_big, y1_big, X2_big, exp_kernel, sigma, 10)
 	K = 10
-	outputs = STP_local(X1_big, y1_big, X2_big, K, exp_kernel, sigma, 10)
+	outputs = TP_local(X1_big, y1_big, X2_big, K, exp_kernel, sigma, 10)
 
 	############################
 	# https://matplotlib.org/stable/gallery/mplot3d/pathpatch3d.html
@@ -312,19 +309,18 @@ def get_traj_unc_sets(init_traj, mus, sigmas, beta, max_x_lin, Lip_sigma, Lip_gr
 	for i in range(len(init_traj)):
 		ell_x_u = np.max([np.linalg.norm(init_traj[i]-max_x_lin), np.linalg.norm(init_traj[i]+max_x_lin)])
 		ell_x_u = max_x_lin
-		x_temp_1 = mus[i] + beta*(sigmas[i] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
-		x_temp_2 = mus[i] - beta*(sigmas[i] + Lip_sigma*ell_x_u)+Lip_grad_mu*ell_x_u**2/2
+		x_temp_1 = mus[i] + beta*(sigmas[i] + Lip_sigma*ell_x_u) + Lip_grad_mu*ell_x_u**2/2
+		x_temp_2 = mus[i] - beta*(sigmas[i] + Lip_sigma*ell_x_u) + Lip_grad_mu*ell_x_u**2/2
 
 		x_temp_up, x_temp_low = minkowski_sum(x_temp_up, x_temp_low, x_temp_1, x_temp_2)
 		unc_up.append(x_temp_up)
 		unc_low.append(x_temp_low)
-		#IPython.embed()
 
 	return np.array(unc_up), np.array(unc_low)
 
 
 
-def get_traj_unc_sets_tp1(init_traj, mus, sigmas, beta, max_x_lin, Lip_sigma, Lip_grad_mu):
+def get_traj_unc_sets_tp1(init_traj, mus, sigmas, J_x, J_u, beta, max_x_lin, Lip_sigma, Lip_grad_mu):
 	unc_up = []
 	unc_low = []
 	x_temp_up = 0
@@ -336,26 +332,24 @@ def get_traj_unc_sets_tp1(init_traj, mus, sigmas, beta, max_x_lin, Lip_sigma, Li
 	x_temp_2 = mus[0] - beta*(sigmas[0] + Lip_sigma*ell_x_u) + Lip_grad_mu*ell_x_u**2/2
 	unc_up.append(x_temp_1)
 	unc_low.append(x_temp_2)
-		#IPython.embed()
 
 	return np.array(unc_up), np.array(unc_low)
 
 
 
-def get_Jacobian(X1, y1, init_traj, est_func, sigma, K, eps=0.01):
-	x_Jac = init_traj
-	n = x_Jac.shape
-	u_Jac = np.zeros(n)
+def get_Jacobian(X1, y1, x_traj, u_traj, est_func, sigma, scale, K, eps=0.01):
+	x_Jac = x_traj
+	u_Jac = u_traj
 	X2_big = np.stack((x_Jac + eps, u_Jac), axis=-1)
-	mu_x_p, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, K)
+	mu_x_p, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, scale, K)
 	X2_big = np.stack((x_Jac - eps, u_Jac), axis=-1)
-	mu_x_m, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, K)
+	mu_x_m, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, scale, K)
 	X2_big = np.stack((x_Jac, u_Jac + eps), axis=-1)
-	mu_u_p, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, K)
+	mu_u_p, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, scale, K)
 	X2_big = np.stack((x_Jac, u_Jac - eps), axis=-1)
-	mu_u_m, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, K)
+	mu_u_m, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, scale, K)
 	X2_big = np.stack((x_Jac, u_Jac), axis=-1)
-	mu, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, K)
+	mu, _ = est_func(X1, y1, X2_big, exp_kernel, sigma, scale, K)
 
 	J_x = 0.5 * (mu_x_p - mu_x_m)/eps
 	J_u = 0.5 * (mu_u_p - mu_u_m)/eps
@@ -444,7 +438,7 @@ def get_Lipschitz_est(x_trajectories, y_trajectories, delta, n, est_fun, sigma_n
 
 
 
-def STP_MPC(mu, J_x, J_u, x_max, x_min, init_traj, T_mpc, x_0, xf, Q, R):
+def TP_MPC(mu, J_x, J_u, x_max, x_min, init_traj, T_mpc, x_0, xf, Q, R):
 	feas_flag = True
 	Q = 10 # state cost
 	R = 1 # control cost

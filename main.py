@@ -34,10 +34,10 @@ class ML_Control(object):
 			n_sim = 30, # number of trajectories in dataset 
 			infeas_flag = False, # optimization infeasibility flag
 			method = 'random', # data acquisition method
-			n_traj = 80, # number of trajectories in dataset
+			n_traj = 200, # number of trajectories in dataset
 			scale = 10.0, # kernel scaling parameter
 			est_fun = None,
-			K = 10, # number of K closest data points for local learning 
+			K = 50, # number of K closest data points for local learning 
 			T_mpc = 4, # mpc horizon
 			Q = 1.0, # state cost
 			R = 100.0, # control cost
@@ -108,16 +108,17 @@ class ML_Control(object):
 		constr = [] # constraints
 
 		# Lipschitz constants
-		Lip_sigma, Lip_grad_mu  = get_Lipschitz_est(x_trajectories, y_trajectories, self.delta, self.n_Lip, self.est_fun, self.sigma, self.scale)
-		# Lip_sigma = 1
-		# Lip_grad_mu = 1
+		#Lip_sigma, Lip_grad_mu  = get_Lipschitz_est(x_trajectories, y_trajectories, self.delta, self.n_Lip, self.est_fun, self.sigma, self.scale)
+		Lip_sigma = 1
+		Lip_grad_mu = 1
 
 
 		# initialize linearization points for first mpc iteration
 		init_traj = np.linspace(x_0, self.x_f, num=self.T_mpc)
+		n = init_traj.shape
+		u_temp = np.zeros(n)
 		# kinearize around trajectory
-		mus, J_x, J_u = get_Jacobian(x_trajectories, y_trajectories, init_traj, self.est_fun, self.sigma, self.K)
-
+		mus, J_x, J_u = get_Jacobian(x_trajectories, y_trajectories, init_traj, u_temp, self.est_fun, self.sigma, self.scale, self.K)
 
 		low_end = []
 		high_end = []
@@ -128,22 +129,25 @@ class ML_Control(object):
 			u_Jac = np.zeros(len(init_traj))
 			X2_big = np.stack((init_traj, u_Jac), axis=-1) 
 			mus, sigmas = self.est_fun(x_trajectories, y_trajectories, X2_big, exp_kernel, self.sigma, self.scale, self.K)
-			x_opt, u_opt = STP_MPC(mus, J_x, J_u, x_max, x_min, init_traj, self.T_mpc, x_0, self.x_f, self.Q, self.R)
-			x_Jax_temp = x_opt[0]
-			u_Jac_temp = u_opt[0]
+			mustest, sigmastest = GP(x_trajectories, y_trajectories, X2_big, exp_kernel, self.sigma, self.scale, self.K)
+			x_opt, u_opt = TP_MPC(mus, J_x, J_u, x_max, x_min, init_traj, self.T_mpc, x_0, self.x_f, self.Q, self.R)
+			x_Jax_temp = x_opt[:-1]
+			u_Jac_temp = u_opt
 			X2_big_temp = np.stack((x_Jax_temp, u_Jac_temp), axis=-1)
-			X2_big_temp = np.expand_dims(X2_big_temp, 0)
 			mus_temp, sigmas_temp = self.est_fun(x_trajectories, y_trajectories, X2_big_temp, exp_kernel, self.sigma, self.scale, self.K)
-			unc_sets_up, unc_sets_low = get_traj_unc_sets_tp1(init_traj, mus_temp, sigmas_temp, self.beta, self.max_x_lin, Lip_sigma, Lip_grad_mu)
+			_, J_x_temp, J_u_temp = get_Jacobian(x_trajectories, y_trajectories, x_Jax_temp, u_Jac_temp, self.est_fun, self.sigma, self.scale, self.K)
+			unc_sets_up, unc_sets_low = get_traj_unc_sets_tp1(init_traj, mus_temp, sigmas_temp, J_x_temp, J_u_temp, self.beta, self.max_x_lin, Lip_sigma, Lip_grad_mu)
 
 			low_end.append(unc_sets_low)
 			high_end.append(unc_sets_up)
 			init_traj = x_opt[1:]
-			mus, J_x, J_u = get_Jacobian(x_trajectories, y_trajectories, init_traj, self.est_fun, self.sigma, self.K)
+			n = init_traj.shape
+			u_temp = np.zeros(n)
+			mus, J_x, J_u = get_Jacobian(x_trajectories, y_trajectories, init_traj, u_temp, self.est_fun, self.sigma, self.scale, self.K)
 			noise = np.random.normal(self.mu, self.sigma, 1)
 
 			# if (x_opt[0]>=-2) and (x_opt[0]<=2):
-			# 	noise = 5*np.random.normal(self.mu, self.sigma, 1)
+			# noise = 5*np.random.normal(self.mu, self.sigma, 1)
 			x_0 = 5 * np.cbrt(self.root_cnst * x_opt[0]) + u_opt[0] 
 
 			
@@ -169,7 +173,7 @@ def main():
 	res_x_low = []
 	res_x_high = []
 	for k in range(N_exp):
-	    alg = ML_Control(est_fun = GP)
+	    alg = ML_Control(est_fun = GP_local)
 	    x_trajectories, y_trajectories = alg.obtain_trajectories()
 	    x_mpc, low_end, high_end = alg.control(x_trajectories, y_trajectories)
 	    res_x.append(x_mpc[1:])
@@ -181,16 +185,16 @@ def main():
 	res_x_low = []
 	res_x_high = []
 	for k in range(N_exp):
-	    alg = ML_Control(est_fun = STP)
+	    alg = ML_Control(est_fun = TP_local)
 	    x_mpc, low_end, high_end = alg.control(x_trajectories, y_trajectories)
 	    res_x.append(x_mpc[1:])
 	    res_x_low.append(low_end)
 	    res_x_high.append(high_end)
 
-	fail_STP, total_STP = count_failures(res_x, res_x_low, res_x_high)
+	fail_TP, total_TP = count_failures(res_x, res_x_low, res_x_high)
 
 
-	print(tabulate([['GP', fail_GP/total_GP*100], ['STP', fail_STP/total_STP*100]], headers=['Method', 'Fails %'], tablefmt='orgtbl'))
+	print(tabulate([['GP', fail_GP/total_GP*100], ['TP', fail_TP/total_TP*100]], headers=['Method', 'Fails %'], tablefmt='orgtbl'))
 	IPython.embed()
 
 
