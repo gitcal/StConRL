@@ -117,7 +117,7 @@ def GP(X1, y1, X2_big, kernel, sigma_noise, scale, K=10):
 		mu2 = solved @ y1
 		# Compute the posterior covariance
 		Sigma22 = kernel(X2, X2, scale)
-		Sigma2 = Sigma22 + sigma_noise  - (solved @ Sigma12)
+		Sigma2 = Sigma22  - (solved @ Sigma12)
 		mus[ind] = mu2
 		Sigmas[ind] = Sigma2
 		ind += 1
@@ -153,7 +153,7 @@ def TP(X1, y1, X2_big, kernel, sigma_noise, scale, K=10):
 		mu2 = solved @ y1
 		# Compute the posterior covariance
 		Sigma22 = kernel(X2, X2, scale)
-		Sigma2 = (dof+y1.T@sc.linalg.solve(Sigma11,y1)-2)/(dof+len(X1)-2)*(Sigma22 + sigma_noise - (solved @ Sigma12))
+		Sigma2 = (dof+y1.T@sc.linalg.solve(Sigma11,y1)-2)/(dof+len(X1)-2)*(Sigma22 - (solved @ Sigma12))
 		mus[ind] = mu2
 		Sigmas[ind] = Sigma2
 		ind += 1
@@ -190,7 +190,7 @@ def GP_local(X1_big, y1_big, X2_big, kernel, sigma_noise, scale, K):
 		mu2 = solved @ y1
 		# Compute the posterior covariance
 		Sigma22 = kernel(X2, X2, scale)
-		Sigma2 = Sigma22 + sigma_noise  - (solved @ Sigma12)
+		Sigma2 = Sigma22  - (solved @ Sigma12)
 		mus[ind] = mu2
 		Sigmas[ind] = Sigma2
 		ind += 1
@@ -228,7 +228,7 @@ def TP_local(X1_big, y1_big, X2_big, kernel, sigma_noise, scale, K):
 		mu2 = solved @ y1
 		# Compute the posterior covariance
 		Sigma22 = kernel(X2, X2, scale)
-		Sigma2 = (dof+y1.T@sc.linalg.solve(Sigma11,y1)-2)/(dof+len(X1)-2)*(Sigma22 + sigma_noise - (solved @ Sigma12))
+		Sigma2 = (dof+y1.T@sc.linalg.solve(Sigma11,y1)-2)/(dof+len(X1)-2)*(Sigma22 - (solved @ Sigma12))
 		mus[ind] = mu2
 		Sigmas[ind] = Sigma2
 		ind += 1
