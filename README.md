@@ -1,2 +1,2 @@
 # StConRL
-ffhfhhfhf
+$$ Student-t process regression in control
